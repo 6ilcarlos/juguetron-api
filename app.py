@@ -29,6 +29,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/")
+async def root():
+    """Root endpoint for health checks"""
+    return {"status": "ok", "service": "juguetron-api", "version": "1.1.0"}
+
+
 # VTEX GraphQL Configuration
 VTEX_BASE_URL = "https://www.juguetron.mx/_v/segment/graphql/v1"
 
