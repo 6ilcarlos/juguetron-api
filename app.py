@@ -152,6 +152,36 @@ class InvoiceGenerationResponse(BaseModel):
     tax: str
 
 
+# F. Facturación Juguetron (Mock del sistema SAT/CFDI)
+class PaymentMethod(str, Enum):
+    """Métodos de pago para facturación"""
+    EFECTIVO = "Efectivo"
+    TARJETA_DEBITO = "Tarjeta de Débito"
+    TARJETA_CREDITO = "Tarjeta de Crédito"
+    TRANSFERENCIA = "Transferencia electrónica de fondos"
+
+
+class InvoiceCFDIRequest(BaseModel):
+    """Request para facturación CFDI de Juguetron"""
+    rfc: str
+    ticket_number: str
+    total: float
+    payment_method: PaymentMethod
+    
+    class Config:
+        extra = "allow"  # Permitir campos adicionales
+
+
+class InvoiceCFDIResponse(BaseModel):
+    """Respuesta de facturación CFDI"""
+    success: bool
+    message: str
+    invoice_id: Optional[str] = None
+    pdf_url: Optional[str] = None
+    validation_errors: List[str] = []
+    invoice_details: Optional[dict] = None
+
+
 # HTTP client reutilizable
 http_client = httpx.AsyncClient(timeout=15.0, follow_redirects=True)
 
@@ -618,6 +648,118 @@ async def request_invoice_generation(request: InvoiceGenerationRequest):
         message=f"Factura generada para orden {request.order_id}",
         total=f"${total_amount:.2f} MXN",
         tax=f"${tax_amount:.2f} MXN"
+    )
+
+
+@app.post("/generate_cfdi_invoice", response_model=InvoiceCFDIResponse)
+async def generate_cfdi_invoice(request: InvoiceCFDIRequest):
+    """
+    Mock Endpoint: Generación de factura CFDI Juguetron
+    
+    Simula el proceso de facturación del portal de Juguetron
+    (https://facturacionjuguetron.azurewebsites.net/)
+    
+    Flujo del proceso:
+    1. Validar RFC (mínimo 12 caracteres, sin guiones)
+    2. Validar número de ticket
+       - Tienda física: formato Vxxxxxxxx
+       - Tienda online: formato O401xxxxx ó O404xxxxx
+    3. Validar total
+       - Tienda física: debe tener punto para centavos (ej: 1452.50)
+       - Tienda online: debe ser 0
+    4. Validar método de pago
+    
+    Genera factura CFDI versión 4.0 simulada.
+    """
+    import random
+    import re
+    
+    validation_errors = []
+    
+    # Validación RFC - mínimo 12 caracteres, sin guiones
+    rfc_clean = request.rfc.replace("-", "").replace(" ", "").upper()
+    if len(rfc_clean) < 12:
+        validation_errors.append("RFC debe tener mínimo 12 caracteres sin incluir guiones")
+    if not re.match(r'^[A-Z&Ñ]{3,4}[0-9]{6}[A-Z0-9]{3}$', rfc_clean):
+        validation_errors.append("RFC no tiene el formato válido del SAT")
+    
+    # Validación número de ticket
+    ticket_upper = request.ticket_number.upper()
+    
+    # Determinar tipo de tienda según el formato del ticket
+    is_online = ticket_upper.startswith(('O401', 'O404'))
+    is_physical = ticket_upper.startswith('V')
+    
+    if is_online and not re.match(r'^O401\d{5}$', ticket_upper) and not re.match(r'^O404\s*\d{5}$', ticket_upper):
+        validation_errors.append("Para tienda online, el ticket debe tener formato O401xxxxx ó O404xxxxx")
+    
+    if is_physical and not re.match(r'^V\d{8}$', ticket_upper):
+        validation_errors.append("Para tienda física, el ticket debe tener formato Vxxxxxxxx")
+    
+    if not is_online and not is_physical:
+        validation_errors.append("Formato de ticket no válido. Debe ser Vxxxxxxxx (tienda física) o O401xxxxx/O404xxxxx (tienda online)")
+    
+    # Validación total
+    if is_online and request.total != 0:
+        validation_errors.append("Para tienda online, el total debe ser 0 (cero)")
+    
+    if is_physical:
+        # Para tienda física, debe tener punto para centavos
+        if '.' not in str(request.total):
+            validation_errors.append("Para tienda física, el total debe contener un punto (.) para incluir centavos")
+        # Validar que los centavos sean correctos
+        try:
+            total_str = str(request.total)
+            if '.' in total_str:
+                parts = total_str.split('.')
+                if len(parts[1]) > 2:
+                    validation_errors.append("El total solo puede tener hasta 2 decimales para centavos")
+        except Exception as e:
+            validation_errors.append(f"Error al validar el formato del total: {str(e)}")
+    
+    # Si hay errores de validación, regresarlos
+    if validation_errors:
+        return InvoiceCFDIResponse(
+            success=False,
+            message="Error de validación",
+            validation_errors=validation_errors,
+            invoice_id=None,
+            pdf_url=None,
+            invoice_details=None
+        )
+    
+    # Simular proceso de generación de factura
+    invoice_id = f"C{random.randint(100, 999)01-{datetime.now().year % 100:D2}-M{random.randint(100000, 999999)}"
+    
+    # Calcular valores
+    total_amount = request.total if is_physical else round(random.uniform(200, 5000), 2)
+    tax_amount = total_amount * 0.16  # IVA 16%
+    subtotal = total_amount - tax_amount
+    
+    # Generar URL del portal SAT (simulada)
+    sat_url = f"https://sat.gob.mx/cfdi/{invoice_id}"
+    
+    return InvoiceCFDIResponse(
+        success=True,
+        message=f"Factura CFDI generada exitosamente para RFC {rfc_clean}",
+        invoice_id=invoice_id,
+        pdf_url=f"https://facturacionjuguetron.azurewebsites.net/api/invoices/{invoice_id}.pdf",
+        validation_errors=[],
+        invoice_details={
+            "invoice_id": invoice_id,
+            "rfc": rfc_clean,
+            "ticket_number": request.ticket_number,
+            "subtotal": f"${subtotal:.2f} MXN",
+            "iva_16": f"${tax_amount:.2f} MXN",
+            "total": f"${total_amount:.2f} MXN",
+            "payment_method": request.payment_method.value,
+            "ticket_type": "Tienda Online" if is_online else "Tienda Física",
+            "issuance_date": datetime.now().strftime("%Y-%m-%d"),
+            "sat_verification": sat_url,
+            "series": "M",
+            "folio": f"{random.randint(10000, 99999)}",
+            "cfdi_version": "4.0"
+        }
     )
 
 

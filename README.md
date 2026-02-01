@@ -217,6 +217,75 @@ Mock endpoint para generación de factura (Mock ERP).
 }
 ```
 
+### `POST /generate_cfdi_invoice` (Nuevo - Simula el Portal de Facturación Juguetron)
+
+Mock endpoint para facturación CFDI de Juguetron, basado en ingeniería inversa de https://facturacionjuguetron.azurewebsites.net/
+
+**Request:**
+```json
+{
+  "rfc": "XAXX010101000",
+  "ticket_number": "V12345678",
+  "total": 1452.50,
+  "payment_method": "Efectivo"
+}
+```
+
+**Parámetros:**
+- `rfc`: RFC del cliente (mínimo 12 caracteres, sin guiones, formato SAT)
+- `ticket_number`: Número de ticket
+  - Tienda física: formato `Vxxxxxxxx`
+  - Tienda online: formato `O401xxxxx` ó `O404xxxxx`
+- `total`: Total de la compra
+  - Tienda física: debe tener punto para centavos (ej: `1452.50`)
+  - Tienda online: debe ser `0`
+- `payment_method`: Método de pago
+  - `Efectivo`
+  - `Tarjeta de Débito`
+  - `Tarjeta de Crédito`
+  - `Transferencia electrónica de fondos`
+
+**Respuesta (Éxito):**
+```json
+{
+  "success": true,
+  "message": "Factura CFDI generada exitosamente para RFC XAXX010101000",
+  "invoice_id": "C10126-M24-543210",
+  "pdf_url": "https://facturacionjuguetron.azurewebsites.net/api/invoices/C10126-M24-543210.pdf",
+  "validation_errors": [],
+  "invoice_details": {
+    "invoice_id": "C10126-M24-543210",
+    "rfc": "XAXX010101000",
+    "ticket_number": "V12345678",
+    "subtotal": "$1249.57 MXN",
+    "iva_16": "$202.93 MXN",
+    "total": "$1452.50 MXN",
+    "payment_method": "Efectivo",
+    "ticket_type": "Tienda Física",
+    "issuance_date": "2026-02-01",
+    "sat_verification": "https://sat.gob.mx/cfdi/C10126-M24-543210",
+    "series": "M",
+    "folio": "54321",
+    "cfdi_version": "4.0"
+  }
+}
+```
+
+**Respuesta (Error de validación):**
+```json
+{
+  "success": false,
+  "message": "Error de validación",
+  "validation_errors": [
+    "RFC debe tener mínimo 12 caracteres sin incluir guiones",
+    "Formato de ticket no válido"
+  ],
+  "invoice_id": null,
+  "pdf_url": null,
+  "invoice_details": null
+}
+```
+
 --
 
 ## Estructura de la respuesta
