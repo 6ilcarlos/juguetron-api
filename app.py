@@ -57,6 +57,15 @@ class SearchResponse(BaseModel):
     total_products: int = 0
 
 
+class SearchRequest(BaseModel):
+    """Modelo de solicitud para búsqueda (POST) - Compatible con Agentes de IA"""
+    termino_busqueda: Optional[str] = None
+    query: Optional[str] = None
+    
+    class Config:
+        extra = "allow"  # Permitir campos adicionales
+
+
 # ============================================================================
 # MOCK API - Endpoints para Demostración
 # ============================================================================
@@ -177,7 +186,7 @@ async def search(
     q: str = Query(..., description="Término de búsqueda", min_length=1)
 ):
     """
-    Busca productos y obtiene sugerencias simultáneamente.
+    Busca productos y obtiene sugerencias simultáneamente (GET).
     
     Devuelve un JSON simple ideal para Agentes de IA con:
     - Sugerencias de búsqueda (autocompletado)
@@ -186,11 +195,45 @@ async def search(
     
     Ejemplo: /search?q=lego
     """
+    return await execute_search(q)
+
+
+@app.post("/search", response_model=SearchResponse)
+async def search_post(request: SearchRequest):
+    """
+    Busca productos y obtiene sugerencias simultáneamente (POST).
+    
+    Versión POST más amigable para Agentes de IA. Acepta tanto "termino_busqueda" como "query".
+    No requiere URL encoding de los espacios.
+    
+    Ejemplo (JSON body):
+    {
+      "termino_busqueda": "LEGO niño 8 años"
+    }
+    o
+    {
+      "query": "lego"
+    }
+    """
+    # Obtener el término de búsqueda del request
+    query_term = request.termino_busqueda or request.query
+    
+    if not query_term:
+        raise HTTPException(
+            status_code=400,
+            detail="Debe proporcionar 'termino_busqueda' o 'query' en el request body"
+        )
+    
+    return await execute_search(query_term)
+
+
+async def execute_search(query: str) -> SearchResponse:
+    """Función compartida para ejecutar la búsqueda (usada por GET y POST)"""
     try:
         # Realizar ambas peticiones en paralelo
-        autocomplete_vars = {"fullText": q}
+        autocomplete_vars = {"fullText": query}
         product_vars = {
-            "fullText": q,
+            "fullText": query,
             "productOriginVtex": True,
             "simulationBehavior": "default",
             "hideUnavailableItems": False,
@@ -234,10 +277,16 @@ async def search(
         products = []
         if products_response.status_code == 200:
             products_data = products_response.json()
-            products = parse_products(products_data, q)
+            products = parse_products(products_data, query)
+        
+        # Procesar productos
+        products = []
+        if products_response.status_code == 200:
+            products_data = products_response.json()
+            products = parse_products(products_data, query)
         
         return SearchResponse(
-            query=q,
+            query=query,
             suggestions=suggestions,
             products=products,
             total_products=len(products)
