@@ -62,6 +62,133 @@ GET /search?q=carros
 
 Verifica que el API esté funcionando.
 
+---
+
+## Endpoints Mock para Demostración
+
+Estos endpoints simulan integraciones con sistemas externos para demostración:
+
+### `POST /request_stock_check`
+
+Mock endpoint para verificación de stock (Híbrido).
+
+**Request:**
+```json
+{
+  "sku": "12345",
+  "zip_code": "02300"
+}
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "message": "Stock verificado para SKU 12345",
+  "stock": {
+    "sku": "12345",
+    "quantity": 5,
+    "status": "in_stock"
+  },
+  "available_locations": [
+    {
+      "name": "Tienda Reforma",
+      "address": "Av. Paseo de la Reforma 222, CDMX",
+      "quantity": 2,
+      "distance": "2.3 km"
+    }
+  ],
+  "estimated_delivery": "2025-02-03"
+}
+```
+
+### `POST /request_order_tracking`
+
+Mock endpoint para seguimiento de pedido (Mock Janis).
+
+**Request:**
+```json
+{
+  "order_id": "ORD-998877"
+}
+```
+
+**Respuesta:**
+```json
+{
+  "order_id": "ORD-998877",
+  "status": "En Tránsito",
+  "estimated_delivery": "2025-02-04",
+  "current_location": "Centro de Distribución Norte",
+  "last_update": "2025-02-01 10:30:00",
+  "items": [
+    {
+      "name": "LEGO City Police Station",
+      "quantity": 1,
+      "price": "$899.00 MXN"
+    }
+  ],
+  "tracking_number": "JUG45678901"
+}
+```
+
+### `POST /request_create_zendesk_ticket`
+
+Mock endpoint para crear ticket de soporte (Mock Zendesk).
+
+**Request:**
+```json
+{
+  "email": "cliente@email.com",
+  "category": "Producto Dañado",
+  "description": "La caja llegó abierta",
+  "sentiment": "Negativo"
+}
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "ticket_id": "ZDK-567890",
+  "message": "Ticket creado exitosamente para cliente@email.com",
+  "priority": "High",
+  "estimated_response_time": "4 horas"
+}
+```
+
+**Categorías disponibles:**
+- `Producto Dañado`
+- `Reembolso`
+- `Cambio`
+- `General`
+
+### `POST /request_invoice_generation`
+
+Mock endpoint para generación de factura (Mock ERP).
+
+**Request:**
+```json
+{
+  "order_id": "ORD-123",
+  "rfc": "XAXX010101000"
+}
+```
+
+**Respuesta:**
+```json
+{
+  "success": true,
+  "invoice_id": "FAC-789012",
+  "pdf_url": "https://api.juguetron.mx/invoices/FAC-789012.pdf",
+  "message": "Factura generada para orden ORD-123",
+  "total": "$1150.00 MXN",
+  "tax": "$150.00 MXN"
+}
+```
+
+--
+
 ## Estructura de la respuesta
 
 - `query`: Término de búsqueda original

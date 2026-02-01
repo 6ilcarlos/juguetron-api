@@ -8,14 +8,16 @@ import base64
 import json
 import httpx
 from typing import List, Optional
+from enum import Enum
+from datetime import datetime, timedelta
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 app = FastAPI(
     title="Juguetron API",
-    description="API simple para búsqueda de productos en Juguetron.mx",
-    version="1.0.0"
+    description="API para búsqueda de productos y servicios mock (Inventario, Pedidos, Soporte, Facturación) - Diseñado para Agentes de IA",
+    version="1.1.0"
 )
 
 # Configurar CORS para agentes de IA
@@ -53,6 +55,86 @@ class SearchResponse(BaseModel):
     suggestions: List[str] = []
     products: List[Product] = []
     total_products: int = 0
+
+
+# ============================================================================
+# MOCK API - Endpoints para Demostración
+# ============================================================================
+
+# B. Inventario (Híbrido)
+class StockCheckRequest(BaseModel):
+    """Request para verificación de stock"""
+    sku: str
+    zip_code: Optional[str] = None
+
+
+class StockCheckResponse(BaseModel):
+    """Respuesta de verificación de stock"""
+    success: bool
+    message: str
+    stock: dict
+    available_locations: List[dict]
+    estimated_delivery: Optional[str] = None
+
+
+# C. Pedidos (Mock Janis)
+class OrderTrackingRequest(BaseModel):
+    """Request para seguimiento de pedido"""
+    order_id: str
+
+
+class OrderTrackingResponse(BaseModel):
+    """Respuesta de seguimiento de pedido"""
+    order_id: str
+    status: str
+    estimated_delivery: str
+    current_location: str
+    last_update: str
+    items: List[dict]
+    tracking_number: str
+
+
+# D. Soporte (Mock Zendesk)
+class TicketCategory(str, Enum):
+    """Categorías de tickets"""
+    PRODUCTO_DANADO = "Producto Dañado"
+    REEMBOLSO = "Reembolso"
+    CAMBIO = "Cambio"
+    GENERAL = "General"
+
+
+class CreateTicketRequest(BaseModel):
+    """Request para crear ticket"""
+    email: str
+    category: TicketCategory
+    description: str
+    sentiment: Optional[str] = None
+
+
+class CreateTicketResponse(BaseModel):
+    """Respuesta de creación de ticket"""
+    success: bool
+    ticket_id: str
+    message: str
+    priority: str
+    estimated_response_time: str
+
+
+# E. Admin (Mock ERP)
+class InvoiceGenerationRequest(BaseModel):
+    """Request para generación de factura"""
+    order_id: str
+    rfc: str
+
+
+class InvoiceGenerationResponse(BaseModel):
+    """Respuesta de generación de factura"""
+    success: bool
+    invoice_id: str
+    pdf_url: str
+    message: str
+    total: str
+    tax: str
 
 
 # HTTP client reutilizable
@@ -326,7 +408,165 @@ def parse_products(data: dict, query: str) -> List[Product]:
 @app.get("/health")
 async def health():
     """Health check endpoint"""
-    return {"status": "healthy", "service": "juguetron-api"}
+    return {"status": "healthy", "service": "jugueton-api"}
+
+
+# ============================================================================
+# MOCK API - Endpoints para Demostración
+# ============================================================================
+
+@app.post("/request_stock_check", response_model=StockCheckResponse)
+async def request_stock_check(request: StockCheckRequest):
+    """
+    Mock Endpoint: Verificación de stock (Híbrido)
+    
+    Simula una consulta a sistema de inventario.
+    Devuelve disponibilidad, ubicaciones y fecha de entrega estimada.
+    """
+    import random
+    
+    # Simular datos de stock
+    stock_data = {
+        "sku": request.sku,
+        "quantity": random.choice([0, 1, 2, 5, 10, 15]),
+        "status": "in_stock" if random.random() > 0.2 else "out_of_stock"
+    }
+    
+    available_locations = [
+        {
+            "name": "Tienda Reforma",
+            "address": "Av. Paseo de la Reforma 222, CDMX",
+            "quantity": random.choice([0, 1, 2, 3]),
+            "distance": f"{random.uniform(1, 5):.1f} km"
+        },
+        {
+            "name": "Tienda Santa Fe",
+            "address": "Av. Vasco de Quiroga 3800, CDMX", 
+            "quantity": random.choice([0, 1, 2, 3]),
+            "distance": f"{random.uniform(3, 10):.1f} km"
+        }
+    ]
+    
+    # Fecha de entrega estimada
+    delivery_days = random.choice([1, 2, 3, 5])
+    estimated_delivery = (datetime.now() + timedelta(days=delivery_days)).strftime("%Y-%m-%d")
+    
+    return StockCheckResponse(
+        success=True,
+        message=f"Stock verificado para SKU {request.sku}",
+        stock=stock_data,
+        available_locations=available_locations,
+        estimated_delivery=estimated_delivery
+    )
+
+
+@app.post("/request_order_tracking", response_model=OrderTrackingResponse)
+async def request_order_tracking(request: OrderTrackingRequest):
+    """
+    Mock Endpoint: Seguimiento de pedido (Mock Janis)
+    
+    Simula una consulta al sistema de logística Janis.
+    Devuelve status del pedido, ubicación actual y tiempo estimado.
+    """
+    import random
+    
+    statuses = ["En Procesamiento", "Enviado", "En Tránsito", "Entregado", "Out for Delivery"]
+    current_status = random.choice(statuses)
+    
+    items = [
+        {
+            "name": "LEGO City Police Station",
+            "quantity": 1,
+            "price": "$899.00 MXN"
+        },
+        {
+            "name": "LEGO Harry Potter Mandrágora",
+            "quantity": 1,
+            "price": "$899.50 MXN"
+        }
+    ]
+    
+    # Fecha estimada de entrega
+    delivery_days = random.choice([1, 2, 3])
+    estimated_delivery = (datetime.now() + timedelta(days=delivery_days)).strftime("%Y-%m-%d")
+    
+    locations = ["Almacén CDMX", "Centro de Distribución Norte", "En ruta a destino", "Ubicación final"]
+    current_location = random.choice(locations)
+    
+    return OrderTrackingResponse(
+        order_id=request.order_id,
+        status=current_status,
+        estimated_delivery=estimated_delivery,
+        current_location=current_location,
+        last_update=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        items=items,
+        tracking_number=f"JUG{random.randint(10000000, 99999999)}"
+    )
+
+
+@app.post("/request_create_zendesk_ticket", response_model=CreateTicketResponse)
+async def request_create_zendesk_ticket(request: CreateTicketRequest):
+    """
+    Mock Endpoint: Creación de ticket de soporte (Mock Zendesk)
+    
+    Simula la creación de un ticket en el sistema de soporte Zendesk.
+    Asigna приорidad basado en el sentimiento del cliente.
+    """
+    import random
+    
+    # Determinar prioridad basada en el sentimiento
+    if request.sentiment and request.sentiment.lower() in ["negativo", "negative"]:
+        priority = "High"
+        estimated_response = "4 horas"
+    elif request.sentiment and request.sentiment.lower() in ["positivo", "positive"]:
+        priority = "Low"
+        estimated_response = "24 horas"
+    else:
+        priority = "Medium"
+        estimated_response = "12 horas"
+    
+    # Generar ID del ticket
+    ticket_id = f"ZDK-{random.randint(100000, 999999)}"
+    
+    return CreateTicketResponse(
+        success=True,
+        ticket_id=ticket_id,
+        message=f"Ticket creado exitosamente para {request.email}",
+        priority=priority,
+        estimated_response_time=estimated_response
+    )
+
+
+@app.post("/request_invoice_generation", response_model=InvoiceGenerationResponse)
+async def request_invoice_generation(request: InvoiceGenerationRequest):
+    """
+    Mock Endpoint: Generación de factura (Mock ERP)
+    
+    Simula la generación de una factura CFDI en el sistema ERP.
+    Valida el RFC y genera un PDF de factura.
+    """
+    import random
+    
+    # Validar RFC básico
+    if len(request.rfc) < 12:
+        raise HTTPException(status_code=400, detail="RFC inválido")
+    
+    # Generar datos de la factura
+    invoice_id = f"FAC-{random.randint(100000, 999999)}"
+    total_amount = random.uniform(500, 3000)
+    tax_amount = total_amount * 0.16  # IVA 16%
+    
+    return InvoiceGenerationResponse(
+        success=True,
+        invoice_id=invoice_id,
+        pdf_url=f"https://api.juguetron.mx/invoices/{invoice_id}.pdf",
+        message=f"Factura generada para orden {request.order_id}",
+        total=f"${total_amount:.2f} MXN",
+        tax=f"${tax_amount:.2f} MXN"
+    )
+
+
+# ============================================================================
 
 
 @app.on_event("shutdown")
