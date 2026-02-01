@@ -12,7 +12,7 @@ API simple para búsqueda y sugerencias de productos de Juguetron.mx, diseñado 
 
 ### `GET /search?q=termino`
 
-Busca productos y devuelve sugerencias en una sola respuesta.
+Busca productos y devuelve sugerencias (GET con query params).
 
 **Ejemplos:**
 ```
@@ -20,6 +20,36 @@ GET /search?q=lego
 GET /search?q=barbie
 GET /search?q=carros
 ```
+
+**Nota:** Los espacios en la URL deben estar URL-encoded (ejemplo: `%20` en lugar de espacio)
+
+---
+
+### `POST /search` (Recomendado para Agentes de IA)
+
+Busca productos y devuelve sugerencias usando JSON body. **Más amigable para Agentes de IA** porque no requiere URL encoding.
+
+**Request (JSON body):**
+```json
+{
+  "termino_busqueda": "LEGO niño 8 años"
+}
+```
+o alternativamente:
+```json
+{
+  "query": "lego"
+}
+```
+
+**Respuesta:** Igual que el endpoint GET
+
+**Ventajas del endpoint POST:**
+- No requiere URL encoding de espacios y caracteres especiales
+- Acepta nombres de campos más descriptivos (`termino_busqueda`)
+- Más natural para integraciones con Agentes de IA
+
+--
 
 **Respuesta:**
 ```json
@@ -226,10 +256,19 @@ import httpx
 async def get_product_suggestions(query: str):
     """Obtiene sugerencias de productos para un Agente de IA"""
     async with httpx.AsyncClient() as client:
-        response = await client.get(
-            f"https://tu-api.replit.app/search?q={query}"
+        # Usando POST (recomendado para Agentes de IA)
+        response = await client.post(
+            "https://tu-api.replit.app/search",
+            json={"termino_busqueda": query}
         )
         data = response.json()
+        
+        # O alternativamente usando GET:
+        # import urllib.parse
+        # encoded_query = urllib.parse.quote(query)
+        # response = await client.get(
+        #     f"https://tu-api.replit.app/search?q={encoded_query}"
+        # )
         
         # Crear mensaje para el cliente
         message = f"Encontré {data['total_products']} productos de {query}:\n\n"
@@ -250,10 +289,21 @@ async def get_product_suggestions(query: str):
 
 ```javascript
 async function getProductSuggestions(query) {
+  // Usando POST (recomendado para Agentes de IA)
   const response = await fetch(
-    `https://tu-api.replit.app/search?q=${query}`
+    "https://tu-api.replit.app/search",
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ termino_busqueda: query })
+    }
   );
   const data = await response.json();
+  
+  // O alternativamente usando GET:
+  // const response = await fetch(
+  //   `https://tu-api.replit.app/search?q=${encodeURIComponent(query)}`
+  // );
   
   // Crear mensaje para el cliente
   let message = `Encontré ${data.total_products} productos de ${query}:\n\n`;
